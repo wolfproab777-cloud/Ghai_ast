@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghai AI Assistant</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #131314;
+            color: #e3e3e3;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- PAROL OYNASI (MODAL) --- */
+        #auth-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #131314;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+        }
+
+        .auth-card {
+            background: #1e1f20;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            width: 360px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            border: 1px solid #2d2f31;
+        }
+
+        .auth-card h2 {
+            margin-bottom: 12px;
+            font-weight: 500;
+            color: #e3e3e3;
+        }
+
+        .auth-card p {
+            font-size: 14px;
+            color: #9aa0a6;
+            margin-bottom: 24px;
+        }
+
+        .input-box {
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            border: 1px solid #444746;
+            background: #131314;
+            color: #fff;
+            font-size: 15px;
+            outline: none;
+            margin-bottom: 16px;
+            transition: 0.2s;
+        }
+
+        .input-box:focus {
+            border-color: #a8c7fa;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 20px;
+            background: #a8c7fa;
+            color: #040c1e;
+            font-weight: 600;
+            font-size: 15px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .btn:hover {
+            background: #7cacf8;
+        }
+
+        .error-msg {
+            color: #f2b8b5;
+            font-size: 13px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        /* --- CHAT INTERFEYSI (GEMINI STYLE) --- */
+        #app-container {
+            display: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: #1e1f20;
+            padding: 20px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            border-right: 1px solid #2d2f31;
+        }
+
+        .brand-title {
+            font-size: 20px;
+            font-weight: 600;
+            padding: 0 12px;
+            color: #a8c7fa;
+        }
+
+        .new-chat-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #282a2c;
+            color: #e3e3e3;
+            padding: 12px 16px;
+            border-radius: 24px;
+            cursor: pointer;
+            font-size: 14px;
+            border: 1px solid #3c4043;
+        }
+
+        .new-chat-btn:hover {
+            background: #333537;
+        }
+
+        /* Main Chat Area */
+        .main-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            background: #131314;
+            position: relative;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 40px 15%;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .msg-row {
+            display: flex;
+            gap: 16px;
+            line-height: 1.6;
+            font-size: 15px;
+        }
+
+        .msg-row.user {
+            justify-content: flex-end;
+        }
+
+        .msg-bubble {
+            max-width: 80%;
+            padding: 14px 20px;
+            border-radius: 18px;
+        }
+
+        .msg-row.user .msg-bubble {
+            background: #282a2c;
+            color: #e3e3e3;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg-row.bot .msg-bubble {
+            background: transparent;
+            color: #e3e3e3;
+            padding-left: 0;
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .avatar.bot-avatar {
+            background: linear-gradient(135deg, #1a73e8, #a8c7fa);
+            color: #fff;
+        }
+
+        /* Commands Bar */
+        .commands-bar {
+            display: flex;
+            gap: 10px;
+            padding: 0 15% 12px 15%;
+            overflow-x: auto;
+        }
+
+        .cmd-chip {
+            background: #1e1f20;
+            border: 1px solid #444746;
+            color: #c4c7c5;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: 0.2s;
+        }
+
+        .cmd-chip:hover {
+            background: #282a2c;
+            border-color: #a8c7fa;
+            color: #a8c7fa;
+        }
+
+        /* Input Area */
+        .input-container {
+            padding: 0 15% 30px 15%;
+        }
+
+        .input-wrapper {
+            background: #1e1f20;
+            border: 1px solid #444746;
+            border-radius: 28px;
+            padding: 8px 16px 8px 22px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: #a8c7fa;
+            background: #282a2c;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-size: 15px;
+            padding: 8px 0;
+        }
+
+        .send-btn {
+            background: #a8c7fa;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #040c1e;
+            font-weight: bold;
+        }
+
+        .send-btn:hover {
+            background: #7cacf8;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 1. PAROL SORAASH OYNASI -->
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <h2>Ghai AI</h2>
+            <p>Tizimga kirish uchun parolni kiriting</p>
+            <input type="password" id="pass-input" class="input-box" placeholder="Parol..." onkeydown="if(event.key==='Enter') checkPass()">
+            <button class="btn" onclick="checkPass()">Kirish</button>
+            <div id="error-msg" class="error-msg">Parol noto'g'ri! Qayta urinib ko'ring.</div>
+        </div>
+    </div>
+
+    <!-- 2. MAIN CHAT APP -->
+    <div id="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="brand-title">Ghai AI</div>
+            <div class="new-chat-btn" onclick="clearChat()">
+                <span>+</span> Yangi chat
+            </div>
+        </div>
+
+        <!-- Chat Area -->
+        <div class="main-chat">
+            <div class="chat-messages" id="chat-msgs">
+                <div class="msg-row bot">
+                    <div class="avatar bot-avatar">G</div>
+                    <div class="msg-bubble">
+                        Salom! Men <b>Ghai AI</b> yordamchisiman. Menga savol bering yoki quyidagi buyruqlardan birini tanlang.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fast Commands -->
+            <div class="commands-bar">
+                <div class="cmd-chip" onclick="sendCmd('salom')">salom</div>
+                <div class="cmd-chip" onclick="sendCmd('yordam')">yordam</div>
+                <div class="cmd-chip" onclick="sendCmd('profil')">profil</div>
+                <div class="cmd-chip" onclick="sendCmd('yozish')">yozish</div>
+                <div class="cmd-chip" onclick="sendCmd('bot yaratish')">bot yaratish</div>
+            </div>
+
+            <!-- Input Box -->
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <input type="text" id="msg-input" class="chat-input" placeholder="Ghai AI ga xabar yozing..." onkeydown="if(event.key==='Enter') handleSend()">
+                    <button class="send-btn" onclick="handleSend()">➔</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CORRECT_PASS = "ghaitg10";
+        let chatState = "IDLE"; // IDLE, WAITING_TARGET_ID, WAITING_MSG, BOT_NAME, BOT_USER
+        let targetId = "";
+        let botName = "";
+
+        // PAROLNI TEKSHIRISH
+        function checkPass() {
+            const input = document.getElementById("pass-input").value;
+            const errorMsg = document.getElementById("error-msg");
+
+            if (input === CORRECT_PASS) {
+                document.getElementById("auth-overlay").style.display = "none";
+                document.getElementById("app-container").style.display = "flex";
+            } else {
+                errorMsg.style.display = "block";
+            }
+        }
+
+        // CHATGA XABAR QO'SHISH
+        function addMessage(text, sender) {
+            const msgs = document.getElementById("chat-msgs");
+            const row = document.createElement("div");
+            row.className = `msg-row ${sender}`;
+
+            if (sender === 'bot') {
+                row.innerHTML = `
+                    <div class="avatar bot-avatar">G</div>
+                    <div class="msg-bubble">${text}</div>
+                `;
+            } else {
+                row.innerHTML = `
+                    <div class="msg-bubble">${text}</div>
+                `;
+            }
+
+            msgs.appendChild(row);
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function sendCmd(cmd) {
+            document.getElementById("msg-input").value = cmd;
+            handleSend();
+        }
+
+        function clearChat() {
+            document.getElementById("chat-msgs").innerHTML = `
+                <div class="msg-row bot">
+                    <div class="avatar bot-avatar">G</div>
+                    <div class="msg-bubble">Yangi chat boshlandi. Sizga qanday yordam bera olaman?</div>
+                </div>
+            `;
+            chatState = "IDLE";
+        }
+
+        // XABARLAR MANTIQLARI
+        function handleSend() {
+            const input = document.getElementById("msg-input");
+            const text = input.value.trim();
+            if (!text) return;
+
+            addMessage(text, "user");
+            input.value = "";
+
+            // 1. Interaktiv ketma-ketliklar
+            if (chatState === "WAITING_TARGET_ID") {
+                targetId = text;
+                chatState = "WAITING_MSG";
+                setTimeout(() => addMessage("Nima deb yozmoqchisiz?", "bot"), 400);
+                return;
+            }
+
+            if (chatState === "WAITING_MSG") {
+                chatState = "IDLE";
+                setTimeout(() => {
+                    addMessage(`Xabar yuborildi! <br><b>ID:</b> ${targetId}<br><b>Matn:</b> ${text}`, "bot");
+                }, 500);
+                return;
+            }
+
+            if (chatState === "BOT_NAME") {
+                botName = text;
+                chatState = "BOT_USER";
+                setTimeout(() => addMessage("Botingiz uchun username kiriting (masalan: ghai_bot):", "bot"), 400);
+                return;
+            }
+
+            if (chatState === "BOT_USER") {
+                const user = text.replace("@", "");
+                chatState = "IDLE";
+                setTimeout(() => {
+                    if (user.toLowerCase().includes("exist") || user.toLowerCase() === "admin_bot") {
+                        addMessage(`Bunday username mavjud, boshqa username kiriting.`, "bot");
+                    } else {
+                        const fakeToken = "6719283411:AAH" + Math.random().toString(36).substring(2, 10).toUpperCase();
+                        addMessage(`Username bo'sh, ishlatishingiz mumkin!<br><br><b>Bot nomi:</b> ${botName}<br><b>Username:</b> @${user}<br><b>Token:</b> <code>${fakeToken}</code>`, "bot");
+                    }
+                }, 600);
+                return;
+            }
+
+            // 2. Buyruqlar tekshiruvi
+            const lower = text.toLowerCase();
+            setTimeout(() => {
+                if (lower === "salom") {
+                    addMessage("Salom! Men Ghai AI yordamchingizman. Bugun nima ish qilamiz?", "bot");
+                } else if (lower === "yordam") {
+                    addMessage("Mavjud buyruqlar:<br>• <b>salom</b> — Salomlashish<br>• <b>profil</b> — Sizning profilingiz<br>• <b>yozish</b> — Telegram ID ga xabar yuborish<br>• <b>bot yaratish</b> — BotFather simulyatsiyasi", "bot");
+                } else if (lower === "profil") {
+                    addMessage("<b>Foydalanuvchi:</b> Mehmon<br><b>Maqom:</b> Tizimga kirgan (Parol: ghaitg10)<br><b>Tizim:</b> Ghai AI Engine v1.0", "bot");
+                } else if (lower === "yozish") {
+                    chatState = "WAITING_TARGET_ID";
+                    addMessage("Iltimos, xabar yuborilishi kerak bo'lgan Telegram IDni kiriting:", "bot");
+                } else if (lower === "bot yaratish") {
+                    chatState = "BOT_NAME";
+                    addMessage("Bot yaratish uchun botingiz nomini kiriting:", "bot");
+                } else {
+                    addMessage(`Ghai AI: <i>"${text}"</i> bo'yicha so'rovingiz qabul qilindi.`, "bot");
+                }
+            }, 400);
+        }
+    </script>
+</body>
+</html>
