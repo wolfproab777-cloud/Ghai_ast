@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ghai AI - Razvedka & Control Panel</title>
+    <title>Ghai AI - Advanced Control Panel</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #131314; color: #e3e3e3; height: 100vh; display: flex; overflow: hidden; }
@@ -58,14 +58,14 @@
             <div class="chat-messages" id="chat-msgs">
                 <div class="msg-row bot">
                     <div class="avatar bot-avatar">G</div>
-                    <div class="msg-bubble">Salom! Men <b>Ghai AI</b>. Buyruq tanlang yoki "kanal korish" deb yozing.</div>
+                    <div class="msg-bubble">Salom! Men <b>Ghai AI</b>. Buyruq tanlang yoki muloqot qiling.</div>
                 </div>
             </div>
             <div class="commands-bar">
+                <div class="cmd-chip" onclick="sendCmd('chatga obuna')">➕ chatga obuna</div>
+                <div class="cmd-chip" onclick="sendCmd('kanalga yozish')">📢 kanalga yozish</div>
                 <div class="cmd-chip" onclick="sendCmd('kanal korish')">🔍 kanal korish</div>
                 <div class="cmd-chip" onclick="sendCmd('yozish')">✉️ yozish (ID ga)</div>
-                <div class="cmd-chip" onclick="sendCmd('salom')">salom</div>
-                <div class="cmd-chip" onclick="sendCmd('yordam')">yordam</div>
             </div>
             <div class="input-container">
                 <div class="input-wrapper">
@@ -80,6 +80,8 @@
         const CORRECT_PASS = "ghaitg10";
         let chatState = "IDLE";
         let targetId = "";
+        let targetChannel = "";
+        let spamCount = 1;
 
         function checkPass() {
             const input = document.getElementById("pass-input").value;
@@ -121,11 +123,64 @@
             addMessage(text, "user");
             input.value = "";
 
-            // KANAL KORISH MANTIQLARI
+            // 1. CHATGA OBUNA BO'LISH
+            if (chatState === "WAITING_JOIN_NAME") {
+                chatState = "IDLE";
+                addMessage(`⏳ Bot <b>${text}</b> kanaliga ulanish holati tekshirilmoqda...`, "bot");
+                try {
+                    const res = await fetch('/api/join-channel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ channel_username: text })
+                    });
+                    const data = await res.json();
+                    addMessage(data.message, "bot");
+                } catch (err) {
+                    addMessage("Server bilan bog'lanishda xatolik.", "bot");
+                }
+                return;
+            }
+
+            // 2. KANALGA KETMA-KET XABAR YOZISH (SPAM / AUTO-SEND)
+            if (chatState === "WAITING_SPAM_CHANNEL") {
+                targetChannel = text;
+                chatState = "WAITING_SPAM_COUNT";
+                addMessage("Nechta xabar yozish kerak? (1 tadan 1300 tagacha):", "bot");
+                return;
+            }
+
+            if (chatState === "WAITING_SPAM_COUNT") {
+                spamCount = parseInt(text) || 1;
+                chatState = "WAITING_SPAM_MSG";
+                addMessage("Kanal/guruhga yuboriladigan xabarni kiriting:", "bot");
+                return;
+            }
+
+            if (chatState === "WAITING_SPAM_MSG") {
+                chatState = "IDLE";
+                addMessage("Yuborish jarayoni boshlanmoqda...", "bot");
+                try {
+                    const res = await fetch('/api/spam-channel', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            channel_username: targetChannel,
+                            count: spamCount,
+                            message: text
+                        })
+                    });
+                    const data = await res.json();
+                    addMessage(data.message, "bot");
+                } catch (err) {
+                    addMessage("Xabar yuborishda xatolik yuz berdi.", "bot");
+                }
+                return;
+            }
+
+            // KANAL KORISH
             if (chatState === "WAITING_CHANNEL_NAME") {
                 chatState = "IDLE";
                 addMessage(`🔎 <b>${text}</b> kanali tahlil qilinmoqda...`, "bot");
-
                 try {
                     const res = await fetch('/api/check-channel', {
                         method: 'POST',
@@ -133,35 +188,24 @@
                         body: JSON.stringify({ channel_username: text })
                     });
                     const data = await res.json();
-
                     if (data.status === 'success') {
-                        let adminList = data.admins.join(', ');
-                        addMessage(`📊 <b>Kanal Razvedka Natijalari:</b><br><br>` +
-                                   `<b>Kanal nomi:</b> ${data.title}<br>` +
-                                   `<b>Niknemi:</b> ${data.username}<br>` +
-                                   `<b>Obunachilar soni:</b> ${data.members_count} ta<br>` +
-                                   `<b>Fayllar/APK holati:</b> ${data.apk_count}<br>` +
-                                   `<b>Adminlar/Niki:</b> ${adminList}`, "bot");
+                        addMessage(`📊 <b>Kanal Natijalari:</b><br><br><b>Nomi:</b> ${data.title}<br><b>A'zolar:</b> ${data.members_count} ta<br><b>Adminlar:</b> ${data.admins.join(', ')}`, "bot");
                     } else {
-                        addMessage(`❌ <b>Xatolik:</b> ${data.message}`, "bot");
+                        addMessage(`❌ ${data.message}`, "bot");
                     }
-                } catch (err) {
-                    addMessage("Serverga ulanishda xatolik yuz berdi.", "bot");
-                }
+                } catch (err) { addMessage("Xatolik yuz berdi.", "bot"); }
                 return;
             }
 
-            // ID GA YOZISH MANTIQLARI
+            // ID GA YOZISH
             if (chatState === "WAITING_TARGET_ID") {
                 targetId = text; chatState = "WAITING_MSG";
-                setTimeout(() => addMessage("Nima deb yozmoqchisiz?", "bot"), 400); 
+                addMessage("Nima deb yozmoqchisiz?", "bot");
                 return;
             }
 
             if (chatState === "WAITING_MSG") {
                 chatState = "IDLE";
-                addMessage("Xabar yuborilmoqda...", "bot");
-
                 try {
                     const res = await fetch('/api/send-msg', {
                         method: 'POST',
@@ -169,28 +213,25 @@
                         body: JSON.stringify({ target_id: targetId, message: text })
                     });
                     const data = await res.json();
-
-                    if (data.status === 'success') {
-                        addMessage(`✅ **Muvaffaqiyatli!**<br>ID: ${targetId} ga xabar yetkazildi.`, "bot");
-                    } else {
-                        addMessage(`❌ **Xatolik:** ${data.message}`, "bot");
-                    }
-                } catch (err) {
-                    addMessage("Server bilan bog'lanishda xatolik yuz berdi.", "bot");
-                }
+                    addMessage(data.status === 'success' ? `✅ Xabar yetkazildi.` : `❌ ${data.message}`, "bot");
+                } catch (err) { addMessage("Xatolik.", "bot"); }
                 return;
             }
 
-            // ODDIY BUYRUQLAR
+            // BUYRUQLARNI QABUL QILISH
             const lower = text.toLowerCase();
-            if (lower === "kanal korish" || lower === "kanal ko'rish") {
+            if (lower === "chatga obuna") {
+                chatState = "WAITING_JOIN_NAME";
+                addMessage("Kanal yoki guruh niknemini kiriting (masalan: <code>@uzbekistan</code>):", "bot");
+            } else if (lower === "kanalga yozish") {
+                chatState = "WAITING_SPAM_CHANNEL";
+                addMessage("Xabar yuborilishi kerak bo'lgan kanal/guruh niknemini kiriting:", "bot");
+            } else if (lower === "kanal korish") {
                 chatState = "WAITING_CHANNEL_NAME";
-                addMessage("Kanal niknemini kiriting (Masalan: <code>@uzbekistan</code> yoki <code>my_channel</code>):", "bot");
+                addMessage("Kanal niknemini kiriting:", "bot");
             } else if (lower === "yozish") {
                 chatState = "WAITING_TARGET_ID";
                 addMessage("Telegram IDni kiriting:", "bot");
-            } else if (lower === "salom") {
-                addMessage("Salom! Men Ghai AI razvedka botiman.", "bot");
             } else {
                 addMessage(`Ghai AI: <i>"${text}"</i> so'rovingiz qabul qilindi.`, "bot");
             }
