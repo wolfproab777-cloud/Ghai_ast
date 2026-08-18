@@ -211,8 +211,9 @@ async def handle_talking_photo(request):
             return web.json_response({"status": "error", "message": "Rasm, matn yoki Telegram ID to'liq kiritilmadi!"}, status=400)
 
         if not REPLICATE_API_TOKEN:
-            return web.json_response({"status": "error", "message": "REPLICATE_API_TOKEN sozlanmagan!"}, status=400)
+            return web.json_response({"status": "error", "message": "REPLICATE_API_TOKEN sozlanmagan! Render Environment bo'limini tekshiring."}, status=400)
 
+        # Vaqtincha fayllarni saqlash
         image_path = "temp_photo.jpg"
         audio_mp3 = "temp_voice.mp3"
         audio_wav = "temp_voice.wav"
@@ -220,34 +221,43 @@ async def handle_talking_photo(request):
         with open(image_path, "wb") as f:
             f.write(image_bytes)
 
+        # Ovoz yaratish
         communicate = edge_tts.Communicate(text, "uz-UZ-MadinaNeural")
         await communicate.save(audio_mp3)
 
         sound = AudioSegment.from_file(audio_mp3)
         sound.export(audio_wav, format="wav")
 
-        headers = {"Authorization": f"Bearer {REPLICATE_API_TOKEN}"}
+        import base64
+        with open(image_path, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        with open(audio_wav, "rb") as f:
+            aud_b64 = base64.b64encode(f.read()).decode("utf-8")
+
+        headers = {
+            "Authorization": f"Bearer {REPLICATE_API_TOKEN}",
+            "Content-Type": "application/json"
+        }
         
-        res = requests.post(
-            "https://api.replicate.com/v1/predictions",
-            headers=headers,
-            json={
-                "version": "3aa0013d2531e21b7776cb67140e10f13f1737e4ba397a6f272a85eb803a62d8",
-                "input": {
-                    "source_image": f"data:image/jpeg;base64,{image_bytes.hex()}",
-                    "driven_audio": f"data:audio/wav;base64,{open(audio_wav, 'rb').read().hex()}"
-                }
+        # Replicate SadTalker modeli uchun to'g'ri Data URL format
+        payload = {
+            "version": "3aa0013d2531e21b7776cb67140e10f13f1737e4ba397a6f272a85eb803a62d8",
+            "input": {
+                "source_image": f"data:image/jpeg;base64,{img_b64}",
+                "driven_audio": f"data:audio/wav;base64,{aud_b64}"
             }
-        )
-        
+        }
+
+        res = requests.post("https://api.replicate.com/v1/predictions", headers=headers, json=payload)
         prediction = res.json()
         prediction_id = prediction.get("id")
 
         if not prediction_id:
-            return web.json_response({"status": "error", "message": "Replicate servisida xatolik yuz berdi."}, status=400)
+            error_details = prediction.get("detail", "Noma'lum xatolik")
+            return web.json_response({"status": "error", "message": f"Replicate API xatosi: {error_details}"}, status=400)
 
         video_url = None
-        for _ in range(60):
+        for _ in range(40):
             await asyncio.sleep(3)
             chk_res = requests.get(f"https://api.replicate.com/v1/predictions/{prediction_id}", headers=headers)
             chk_data = chk_res.json()
@@ -257,19 +267,20 @@ async def handle_talking_photo(request):
             elif chk_data.get("status") in ["failed", "canceled"]:
                 break
 
+        # Vaqtincha fayllarni o'chirish
+        for f in [image_path, audio_mp3, audio_wav]:
+            if os.path.exists(f): 
+                os.remove(f)
+
         if video_url:
             await bot.send_video(chat_id=int(target_id), video=video_url, caption=f"🎬 **Yaratilgan Video:**\n{text}", parse_mode="Markdown")
             stats_data["sent_messages"] += 1
-            res_msg = "Video muvaffaqiyatli yaratildi va Telegram'ga yuborildi!"
+            return web.json_response({"status": "success", "message": "✅ Video yaratildi va Telegram ID ga yuborildi!"})
         else:
-            res_msg = "Video generatsiyasida xatolik yuz berdi."
+            return web.json_response({"status": "error", "message": "❌ Video generatsiyasi muvaffaqiyatsiz tugadi."}, status=400)
 
-        for f in [image_path, audio_mp3, audio_wav]:
-            if os.path.exists(f): os.remove(f)
-
-        return web.json_response({"status": "success", "message": res_msg})
     except Exception as e:
-        return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
+        return web.json_response({"status": "error", "message": f"Server xatoligi: {str(e)}"}, status=500)
 
 # MAVJUD FUNKSIYALAR
 async def handle_send_message(request):
