@@ -4,3 +4,4 @@ yt-dlp
 telethon
 edge-tts
 pydub
+requests
