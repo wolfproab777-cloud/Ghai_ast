@@ -3,3 +3,4 @@ aiohttp
 telethon
 yt-dlp
 gTTS
+edge-tts
