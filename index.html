@@ -39,6 +39,9 @@
         .input-wrapper { background: #1e1f20; border: 1px solid #444746; border-radius: 28px; padding: 8px 16px 8px 22px; display: flex; align-items: center; gap: 12px; }
         .chat-input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-size: 15px; padding: 8px 0; }
         .send-btn { background: #a8c7fa; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #040c1e; font-weight: bold; }
+        .voice-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .voice-btn { background: #282a2c; border: 1px solid #a8c7fa; color: #fff; padding: 6px 12px; border-radius: 12px; cursor: pointer; font-size: 12px; }
+        .voice-btn:hover { background: #a8c7fa; color: #131314; }
     </style>
 </head>
 <body>
@@ -146,6 +149,12 @@
             chatState = "IDLE";
         }
 
+        function selectVoice(type) {
+            tempParams.voice_type = type;
+            chatState = "WAITING_TTS_ID";
+            addMessage(`Ovoz turi tanlandi: <b>${type}</b>. Endi ovozli xabar yuboriladigan Telegram ID-ni kiriting:`, "bot");
+        }
+
         async function handleSend() {
             const input = document.getElementById("msg-input");
             const text = input.value.trim();
@@ -227,14 +236,33 @@
                 const data = await res.json(); addMessage(data.message, "bot"); return;
             }
 
-            // 6. TEXT TO SPEECH
+            // 6. TEXT TO SPEECH (OVOZ TURLARI BILAN)
             if (chatState === "WAITING_TTS_TEXT") {
-                tempParams.text = text; chatState = "WAITING_TTS_ID";
-                addMessage("Ovozli xabar qaysi Telegram ID ga yuborilsin?:", "bot"); return;
+                tempParams.text = text;
+                chatState = "SELECT_VOICE";
+                addMessage(`Ovoz turini tanlang:<br>
+                    <div class="voice-options">
+                        <button class="voice-btn" onclick="selectVoice('girl')">👩 Qiz bola</button>
+                        <button class="voice-btn" onclick="selectVoice('boy')">👨 O'g'il bola</button>
+                        <button class="voice-btn" onclick="selectVoice('child')">👶 Yosh bola</button>
+                        <button class="voice-btn" onclick="selectVoice('hacker')">🎭 Haker</button>
+                        <button class="voice-btn" onclick="selectVoice('robot')">🤖 Robot</button>
+                        <button class="voice-btn" onclick="selectVoice('realistic')">🎧 Realistik Studio</button>
+                    </div>`, "bot");
+                return;
             }
             if (chatState === "WAITING_TTS_ID") {
                 chatState = "IDLE";
-                const res = await fetch('/api/tts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text: tempParams.text, target_id: text}) });
+                addMessage("🎙️ Ovoz shakllantirilmoqda...", "bot");
+                const res = await fetch('/api/tts', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        text: tempParams.text,
+                        voice_type: tempParams.voice_type,
+                        target_id: text
+                    })
+                });
                 const data = await res.json(); addMessage(data.message, "bot"); return;
             }
 
