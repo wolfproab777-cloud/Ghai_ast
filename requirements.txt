@@ -1,6 +1,6 @@
-aiogram>=3.0.0
+aiogram
 aiohttp
-telethon
 yt-dlp
-gTTS
+telethon
 edge-tts
+pydub
