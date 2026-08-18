@@ -6,9 +6,10 @@ from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramRetryAfter, TelegramBadRequest
 from aiohttp import web
-from gtts import gTTS
 import yt_dlp
 from telethon import TelegramClient
+import edge_tts
+from pydub import AudioSegment
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = os.getenv("API_ID")
@@ -118,21 +119,50 @@ async def handle_download_media(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Yuklashda xatolik: {str(e)}"}, status=400)
 
+# 5. ADVANCED TEXT-TO-SPEECH GENERATOR
+async def generate_custom_voice(text, voice_type, output_file):
+    if voice_type in ["girl", "child"]:
+        voice = "uz-UZ-MadinaNeural"
+    elif voice_type in ["boy", "hacker", "robot"]:
+        voice = "uz-UZ-SardorNeural"
+    else:
+        voice = "tr-TR-AhmetNeural"
+
+    temp_file = "temp_raw.mp3"
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(temp_file)
+
+    audio = AudioSegment.from_file(temp_file)
+
+    if voice_type == "child":
+        new_sample_rate = int(audio.frame_rate * 1.35)
+        audio = audio._spawn(audio.raw_data, overrides={'frame_rate': new_sample_rate}).set_frame_rate(audio.frame_rate)
+    elif voice_type == "hacker":
+        new_sample_rate = int(audio.frame_rate * 0.78)
+        audio = audio._spawn(audio.raw_data, overrides={'frame_rate': new_sample_rate}).set_frame_rate(audio.frame_rate)
+    elif voice_type == "robot":
+        audio = audio.low_pass_filter(1200).high_pass_filter(300)
+
+    audio.export(output_file, format="ogg", codec="libopus")
+    if os.path.exists(temp_file):
+        os.remove(temp_file)
+
 # 5. TEXT-TO-SPEECH (TTS) API
 async def handle_text_to_speech(request):
     try:
         data = await request.json()
         text = data.get("text")
         target_id = data.get("target_id")
+        voice_type = data.get("voice_type", "girl")
 
-        tts = gTTS(text=text, lang='tr')
-        filepath = "voice.ogg"
-        tts.save(filepath)
+        filepath = "voice_output.ogg"
+        await generate_custom_voice(text, voice_type, filepath)
 
         await bot.send_voice(chat_id=int(target_id), voice=types.FSInputFile(filepath))
-        if os.path.exists(filepath): os.remove(filepath)
+        if os.path.exists(filepath):
+            os.remove(filepath)
 
-        return web.json_response({"status": "success", "message": "Matn ovozli xabarga aylantirilib yuborildi!"})
+        return web.json_response({"status": "success", "message": f"Matn '{voice_type}' ovozida yuborildi!"})
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
 
@@ -252,7 +282,7 @@ async def handle_spam_channel(request):
 
         return web.json_response({
             "status": "success",
-            "message": f"🚀 <b>{channel_input}</b> kanaliga {count} ta xabar yuborish jarayoni boshlandi."
+            "message": f"📢 <b>{channel_input}</b> kanaliga {count} ta xabar yuborish jarayoni boshlandi."
         })
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
