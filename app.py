@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import requests
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -14,6 +15,7 @@ from pydub import AudioSegment
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
+REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -186,6 +188,89 @@ async def handle_userbot_join_spam(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Userbot xatosi: {str(e)}"}, status=400)
 
+# 7. RASMNI GAPIRTIRIB VIDEO QILISH (TALKING PHOTO) API
+async def handle_talking_photo(request):
+    try:
+        reader = await request.multipart()
+        image_bytes = None
+        text = ""
+        target_id = ""
+
+        while True:
+            field = await reader.next()
+            if not field:
+                break
+            if field.name == 'image':
+                image_bytes = await field.read()
+            elif field.name == 'text':
+                text = await field.read_decode()
+            elif field.name == 'target_id':
+                target_id = await field.read_decode()
+
+        if not image_bytes or not text or not target_id:
+            return web.json_response({"status": "error", "message": "Rasm, matn yoki Telegram ID to'liq kiritilmadi!"}, status=400)
+
+        if not REPLICATE_API_TOKEN:
+            return web.json_response({"status": "error", "message": "REPLICATE_API_TOKEN sozlanmagan!"}, status=400)
+
+        image_path = "temp_photo.jpg"
+        audio_mp3 = "temp_voice.mp3"
+        audio_wav = "temp_voice.wav"
+
+        with open(image_path, "wb") as f:
+            f.write(image_bytes)
+
+        communicate = edge_tts.Communicate(text, "uz-UZ-MadinaNeural")
+        await communicate.save(audio_mp3)
+
+        sound = AudioSegment.from_file(audio_mp3)
+        sound.export(audio_wav, format="wav")
+
+        headers = {"Authorization": f"Bearer {REPLICATE_API_TOKEN}"}
+        
+        res = requests.post(
+            "https://api.replicate.com/v1/predictions",
+            headers=headers,
+            json={
+                "version": "3aa0013d2531e21b7776cb67140e10f13f1737e4ba397a6f272a85eb803a62d8",
+                "input": {
+                    "source_image": f"data:image/jpeg;base64,{image_bytes.hex()}",
+                    "driven_audio": f"data:audio/wav;base64,{open(audio_wav, 'rb').read().hex()}"
+                }
+            }
+        )
+        
+        prediction = res.json()
+        prediction_id = prediction.get("id")
+
+        if not prediction_id:
+            return web.json_response({"status": "error", "message": "Replicate servisida xatolik yuz berdi."}, status=400)
+
+        video_url = None
+        for _ in range(60):
+            await asyncio.sleep(3)
+            chk_res = requests.get(f"https://api.replicate.com/v1/predictions/{prediction_id}", headers=headers)
+            chk_data = chk_res.json()
+            if chk_data.get("status") == "succeeded":
+                video_url = chk_data.get("output")
+                break
+            elif chk_data.get("status") in ["failed", "canceled"]:
+                break
+
+        if video_url:
+            await bot.send_video(chat_id=int(target_id), video=video_url, caption=f"🎬 **Yaratilgan Video:**\n{text}", parse_mode="Markdown")
+            stats_data["sent_messages"] += 1
+            res_msg = "Video muvaffaqiyatli yaratildi va Telegram'ga yuborildi!"
+        else:
+            res_msg = "Video generatsiyasida xatolik yuz berdi."
+
+        for f in [image_path, audio_mp3, audio_wav]:
+            if os.path.exists(f): os.remove(f)
+
+        return web.json_response({"status": "success", "message": res_msg})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
+
 # MAVJUD FUNKSIYALAR
 async def handle_send_message(request):
     try:
@@ -198,7 +283,7 @@ async def handle_send_message(request):
 
         await bot.send_message(
             chat_id=int(target_id),
-            text=f"💬 **Saytdan kelgan xabar:**\n\n{message_text}",
+            text=f"✉️ **Saytdan kelgan xabar:**\n\n{message_text}",
             parse_mode="Markdown"
         )
         stats_data["sent_messages"] += 1
@@ -282,7 +367,7 @@ async def handle_spam_channel(request):
 
         return web.json_response({
             "status": "success",
-            "message": f"📢 <b>{channel_input}</b> kanaliga {count} ta xabar yuborish jarayoni boshlandi."
+            "message": f"📣 <b>{channel_input}</b> kanaliga {count} ta xabar yuborish jarayoni boshlandi."
         })
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
@@ -312,6 +397,7 @@ async def start_web_server():
     app.router.add_post('/api/download-media', handle_download_media)
     app.router.add_post('/api/tts', handle_text_to_speech)
     app.router.add_post('/api/userbot-spam', handle_userbot_join_spam)
+    app.router.add_post('/api/talking-photo', handle_talking_photo)
 
     runner = web.AppRunner(app)
     await runner.setup()
