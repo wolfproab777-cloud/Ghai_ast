@@ -36,9 +36,10 @@
         .cmd-chip { background: #1e1f20; border: 1px solid #444746; color: #c4c7c5; padding: 8px 14px; border-radius: 20px; font-size: 12px; cursor: pointer; white-space: nowrap; }
         .cmd-chip:hover { background: #282a2c; border-color: #a8c7fa; color: #a8c7fa; }
         .input-container { padding: 0 12% 24px 12%; }
-        .input-wrapper { background: #1e1f20; border: 1px solid #444746; border-radius: 28px; padding: 8px 16px 8px 22px; display: flex; align-items: center; gap: 12px; }
+        .input-wrapper { background: #1e1f20; border: 1px solid #444746; border-radius: 28px; padding: 8px 16px 8px 16px; display: flex; align-items: center; gap: 12px; }
         .chat-input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-size: 15px; padding: 8px 0; }
         .send-btn { background: #a8c7fa; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #040c1e; font-weight: bold; }
+        .clip-btn { background: #282a2c; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #a8c7fa; font-size: 18px; }
         .voice-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
         .voice-btn { background: #282a2c; border: 1px solid #a8c7fa; color: #fff; padding: 6px 12px; border-radius: 12px; cursor: pointer; font-size: 12px; }
         .voice-btn:hover { background: #a8c7fa; color: #131314; }
@@ -75,6 +76,7 @@
                 </div>
             </div>
             <div class="commands-bar">
+                <div class="cmd-chip" onclick="sendCmd('rasmni gapirtirish')">🎬 rasmni gapirtirish</div>
                 <div class="cmd-chip" onclick="sendCmd('chatga obuna')">➕ chatga obuna</div>
                 <div class="cmd-chip" onclick="sendCmd('kanalga yozish')">📢 kanalga yozish</div>
                 <div class="cmd-chip" onclick="sendCmd('anonim yozish')">🎭 anonim yozish</div>
@@ -86,6 +88,8 @@
             </div>
             <div class="input-container">
                 <div class="input-wrapper">
+                    <input type="file" id="photo-file-input" accept="image/*" style="display: none;" onchange="handleFileSelected(event)">
+                    <button class="clip-btn" onclick="document.getElementById('photo-file-input').click()">📎</button>
                     <input type="text" id="msg-input" class="chat-input" placeholder="Xabar yozing..." onkeydown="if(event.key==='Enter') handleSend()">
                     <button class="send-btn" onclick="handleSend()">➔</button>
                 </div>
@@ -100,6 +104,7 @@
         let targetChannel = "";
         let spamCount = 1;
         let tempParams = {};
+        let selectedPhotoFile = null;
 
         function checkPass() {
             const input = document.getElementById("pass-input").value;
@@ -139,6 +144,18 @@
             msgs.scrollTop = msgs.scrollHeight;
         }
 
+        function handleFileSelected(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedPhotoFile = file;
+                addMessage(`🖼️ Rasm tanlandi: <b>${file.name}</b>`, "user");
+                if (chatState === "WAITING_TALKING_PHOTO") {
+                    chatState = "WAITING_TALKING_TEXT";
+                    addMessage("Rasm nima deb gapirsin? Matnni kiriting:", "bot");
+                }
+            }
+        }
+
         function sendCmd(cmd) {
             document.getElementById("msg-input").value = cmd;
             handleSend();
@@ -147,6 +164,7 @@
         function clearChat() {
             document.getElementById("chat-msgs").innerHTML = `<div class="msg-row bot"><div class="avatar bot-avatar">G</div><div class="msg-bubble">Yangi chat boshlandi.</div></div>`;
             chatState = "IDLE";
+            selectedPhotoFile = null;
         }
 
         function selectVoice(type) {
@@ -158,9 +176,40 @@
         async function handleSend() {
             const input = document.getElementById("msg-input");
             const text = input.value.trim();
-            if (!text) return;
-            addMessage(text, "user");
+            if (!text && !selectedPhotoFile) return;
+            if (text) addMessage(text, "user");
             input.value = "";
+
+            // RASMNI GAPIRTIRISH STEPLARI
+            if (chatState === "WAITING_TALKING_TEXT") {
+                tempParams.talking_text = text;
+                chatState = "WAITING_TALKING_ID";
+                addMessage("Video qaysi Telegram ID ga yuborilsin?:", "bot");
+                return;
+            }
+
+            if (chatState === "WAITING_TALKING_ID") {
+                chatState = "IDLE";
+                addMessage("🎬 Rasm va audio qayta ishlanmoqda. Video tayyorlanishi biroz vaqt oladi (1-2 daqiqa)...", "bot");
+
+                const formData = new FormData();
+                formData.append("image", selectedPhotoFile);
+                formData.append("text", tempParams.talking_text);
+                formData.append("target_id", text);
+
+                try {
+                    const res = await fetch('/api/talking-photo', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await res.json();
+                    addMessage(data.message, "bot");
+                } catch (err) {
+                    addMessage("Xatolik yuz berdi.", "bot");
+                }
+                selectedPhotoFile = null;
+                return;
+            }
 
             // 1. CHATGA OBUNA BO'LISH
             if (chatState === "WAITING_JOIN_NAME") {
@@ -303,7 +352,11 @@
 
             // BUYRUQLARNI QABUL QILISH
             const lower = text.toLowerCase();
-            if (lower === "chatga obuna") { chatState = "WAITING_JOIN_NAME"; addMessage("Kanal yoki guruh niknemini kiriting:", "bot"); }
+            if (lower === "rasmni gapirtirish") {
+                chatState = "WAITING_TALKING_PHOTO";
+                addMessage("Iltimos, pastdagi 📎 (klip) tugmasini bosib gapirtirmoqchi bo'lgan rasmingizni yuklang:", "bot");
+            }
+            else if (lower === "chatga obuna") { chatState = "WAITING_JOIN_NAME"; addMessage("Kanal yoki guruh niknemini kiriting:", "bot"); }
             else if (lower === "kanalga yozish") { chatState = "WAITING_SPAM_CHANNEL"; addMessage("Kanal/guruh niknemini kiriting:", "bot"); }
             else if (lower === "anonim yozish") { chatState = "WAITING_ANON_ID"; addMessage("Qabul qiluvchining Telegram ID-sini kiriting:", "bot"); }
             else if (lower === "post kopaytirish") { chatState = "WAITING_FWD_FROM"; addMessage("Qaysi kanaldan postlar ko'chirilsin? (@kanal):", "bot"); }
