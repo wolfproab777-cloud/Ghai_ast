@@ -1,6 +1,9 @@
 import os
 import asyncio
 import logging
+import random
+import smtplib
+from email.mime.text import MIMEText
 import requests
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
@@ -10,6 +13,7 @@ from aiohttp import web
 import yt_dlp
 import telethon
 from telethon import TelegramClient
+from telethon.tl.functions.channels import CreateChannelRequest, UpdateUsernameRequest
 import edge_tts
 from pydub import AudioSegment
 
@@ -17,6 +21,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
+SMTP_EMAIL = os.getenv("SMTP_EMAIL", "")  # Gmail manzilingiz
+SMTP_PASS = os.getenv("SMTP_PASS", "")    # Gmail App Password
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
@@ -26,6 +32,7 @@ if API_ID and API_HASH:
     userbot = TelegramClient('userbot_session', int(API_ID), API_HASH)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+otp_storage = {}
 
 stats_data = {
     "sent_messages": 0,
@@ -45,6 +52,79 @@ async def handle_get_stats(request):
         "status": "success",
         "stats": stats_data
     })
+
+# 1. GMAIL OTP YUBORISH
+async def handle_send_otp(request):
+    try:
+        data = await request.json()
+        email = data.get("email")
+        
+        if not email:
+            return web.json_response({"status": "error", "message": "Email kiritilmadi!"}, status=400)
+
+        code = str(random.randint(100000, 999999))
+        otp_storage[email] = code
+
+        msg = MIMEText(f"Ghai AI platformasida ro'yxatdan o'tish uchun 6 talik kodingiz: {code}")
+        msg['Subject'] = "Tasdiqlash Kodi - Ghai AI"
+        msg['From'] = SMTP_EMAIL
+        msg['To'] = email
+
+        with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+            server.login(SMTP_EMAIL, SMTP_PASS)
+            server.sendmail(SMTP_EMAIL, email, msg.as_string())
+
+        return web.json_response({"status": "success", "message": "Kod yuborildi!"})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": f"SMTP Xatolik: {str(e)}"}, status=500)
+
+# 2. OTP KODNI TEKSHIRISH
+async def handle_verify_otp(request):
+    try:
+        data = await request.json()
+        email = data.get("email")
+        code = data.get("code")
+
+        if otp_storage.get(email) == code:
+            del otp_storage[email]
+            return web.json_response({"status": "success", "token": "session_token_active_99"})
+        else:
+            return web.json_response({"status": "error", "message": "Tasdiqlash kodi noto'g'ri!"}, status=400)
+    except Exception as e:
+        return web.json_response({"status": "error", "message": str(e)}, status=500)
+
+# 3. REAL VAQTDA USERBOT ORQALI KANAL OCHISH
+async def handle_create_telegram_channel(request):
+    if not userbot or not userbot.is_connected():
+        return web.json_response({"status": "error", "message": "Userbot biriktirilmagan yoki unga ulana olinmadi!"}, status=400)
+
+    try:
+        data = await request.json()
+        title = data.get("title")
+        channel_type = data.get("type")
+        username = data.get("username", "").strip()
+
+        created = await userbot(CreateChannelRequest(
+            title=title,
+            about="Ghai AI tizimi orqali avtomatik yaratilgan kanal",
+            megagroup=False
+        ))
+        
+        channel_entity = created.chats[0]
+
+        if channel_type == "public" and username:
+            await userbot(UpdateUsernameRequest(channel_entity, username))
+            link = f"https://t.me/{username}"
+        else:
+            link = "Private (Xususiy) Kanal Yaratildi"
+
+        stats_data["checked_channels"] += 1
+        return web.json_response({
+            "status": "success", 
+            "message": f"✅ Akkauntingizda kanal ochildi! Nomi: <b>{title}</b><br>Havola: {link}"
+        })
+    except Exception as e:
+        return web.json_response({"status": "error", "message": f"Kanal ochishda xatolik: {str(e)}"}, status=400)
 
 async def handle_send_anon(request):
     try:
@@ -202,7 +282,7 @@ async def handle_talking_photo(request):
             return web.json_response({"status": "error", "message": "Rasm, matn yoki Telegram ID to'liq kiritilmadi!"}, status=400)
 
         if not REPLICATE_API_TOKEN:
-            return web.json_response({"status": "error", "message": "REPLICATE_API_TOKEN sozlanmagan! Render Environment bo'limini tekshiring."}, status=400)
+            return web.json_response({"status": "error", "message": "REPLICATE_API_TOKEN sozlanmagan!"}, status=400)
 
         image_path = "temp_photo.jpg"
         audio_mp3 = "temp_voice.mp3"
@@ -269,7 +349,6 @@ async def handle_talking_photo(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Server xatoligi: {str(e)}"}, status=500)
 
-# PROFIL ANALIZATORI API
 async def handle_analyze_profile(request):
     if not userbot or not userbot.is_connected():
         return web.json_response({"status": "error", "message": "Userbot API_ID va API_HASH sozlanmagan!"}, status=400)
@@ -305,7 +384,6 @@ async def handle_analyze_profile(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Profilni analiz qilishda xatolik: {str(e)}"}, status=400)
 
-# POST REJALASHTIRISH API
 async def handle_schedule_post(request):
     try:
         data = await request.json()
@@ -450,6 +528,9 @@ async def start_web_server():
     app = web.Application()
     app.router.add_get('/', handle_web)
     app.router.add_get('/api/stats', handle_get_stats)
+    app.router.add_post('/api/auth/send-otp', handle_send_otp)
+    app.router.add_post('/api/auth/verify-otp', handle_verify_otp)
+    app.router.add_post('/api/create-telegram-channel', handle_create_telegram_channel)
     app.router.add_post('/api/send-msg', handle_send_message)
     app.router.add_post('/api/send-anon', handle_send_anon)
     app.router.add_post('/api/check-channel', handle_check_channel)
