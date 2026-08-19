@@ -8,6 +8,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.exceptions import TelegramRetryAfter, TelegramBadRequest
 from aiohttp import web
 import yt_dlp
+import telethon
 from telethon import TelegramClient
 import edge_tts
 from pydub import AudioSegment
@@ -20,14 +21,12 @@ REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-# Telethon Userbot mijozini sozlash
 userbot = None
 if API_ID and API_HASH:
     userbot = TelegramClient('userbot_session', int(API_ID), API_HASH)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Statistika ma'lumotlari
 stats_data = {
     "sent_messages": 0,
     "checked_channels": 0,
@@ -41,14 +40,12 @@ async def handle_web(request):
         return web.FileResponse(html_file_path)
     return web.Response(text="index.html fayli topilmadi!", status=404)
 
-# 1. DASHBOARD STATISTIKASI API
 async def handle_get_stats(request):
     return web.json_response({
         "status": "success",
         "stats": stats_data
     })
 
-# 2. ANONIM XABAR YUBORISH API
 async def handle_send_anon(request):
     try:
         data = await request.json()
@@ -71,7 +68,6 @@ async def handle_send_anon(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
 
-# 3. FORWARDER / AUTO-POST API
 async def handle_forward_posts(request):
     try:
         data = await request.json()
@@ -94,7 +90,6 @@ async def run_forwarder(from_chat, to_chat, limit):
         except Exception as e:
             logging.error(f"Forward xatosi: {e}")
 
-# 4. MEDIA DOWNLOADER API (YT, Instagram, TikTok)
 async def handle_download_media(request):
     try:
         data = await request.json()
@@ -121,7 +116,6 @@ async def handle_download_media(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Yuklashda xatolik: {str(e)}"}, status=400)
 
-# 5. ADVANCED TEXT-TO-SPEECH GENERATOR
 async def generate_custom_voice(text, voice_type, output_file):
     if voice_type in ["girl", "child"]:
         voice = "uz-UZ-MadinaNeural"
@@ -149,7 +143,6 @@ async def generate_custom_voice(text, voice_type, output_file):
     if os.path.exists(temp_file):
         os.remove(temp_file)
 
-# 5. TEXT-TO-SPEECH (TTS) API
 async def handle_text_to_speech(request):
     try:
         data = await request.json()
@@ -168,7 +161,6 @@ async def handle_text_to_speech(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
 
-# 6. USERBOT / AUTO-JOIN & AUTO-SPAM API
 async def handle_userbot_join_spam(request):
     if not userbot or not userbot.is_connected():
         return web.json_response({"status": "error", "message": "Userbot API_ID va API_HASH sozlanmagan!"}, status=400)
@@ -188,7 +180,6 @@ async def handle_userbot_join_spam(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Userbot xatosi: {str(e)}"}, status=400)
 
-# 7. RASMNI GAPIRTIRIB VIDEO QILISH (TALKING PHOTO) API
 async def handle_talking_photo(request):
     try:
         reader = await request.multipart()
@@ -213,7 +204,6 @@ async def handle_talking_photo(request):
         if not REPLICATE_API_TOKEN:
             return web.json_response({"status": "error", "message": "REPLICATE_API_TOKEN sozlanmagan! Render Environment bo'limini tekshiring."}, status=400)
 
-        # Vaqtincha fayllarni saqlash
         image_path = "temp_photo.jpg"
         audio_mp3 = "temp_voice.mp3"
         audio_wav = "temp_voice.wav"
@@ -221,7 +211,6 @@ async def handle_talking_photo(request):
         with open(image_path, "wb") as f:
             f.write(image_bytes)
 
-        # Ovoz yaratish
         communicate = edge_tts.Communicate(text, "uz-UZ-MadinaNeural")
         await communicate.save(audio_mp3)
 
@@ -239,7 +228,6 @@ async def handle_talking_photo(request):
             "Content-Type": "application/json"
         }
         
-        # Replicate SadTalker modeli uchun to'g'ri Data URL format
         payload = {
             "version": "3aa0013d2531e21b7776cb67140e10f13f1737e4ba397a6f272a85eb803a62d8",
             "input": {
@@ -267,7 +255,6 @@ async def handle_talking_photo(request):
             elif chk_data.get("status") in ["failed", "canceled"]:
                 break
 
-        # Vaqtincha fayllarni o'chirish
         for f in [image_path, audio_mp3, audio_wav]:
             if os.path.exists(f): 
                 os.remove(f)
@@ -282,7 +269,71 @@ async def handle_talking_photo(request):
     except Exception as e:
         return web.json_response({"status": "error", "message": f"Server xatoligi: {str(e)}"}, status=500)
 
-# MAVJUD FUNKSIYALAR
+# PROFIL ANALIZATORI API
+async def handle_analyze_profile(request):
+    if not userbot or not userbot.is_connected():
+        return web.json_response({"status": "error", "message": "Userbot API_ID va API_HASH sozlanmagan!"}, status=400)
+
+    try:
+        data = await request.json()
+        target = data.get("target", "").strip()
+
+        if not target:
+            return web.json_response({"status": "error", "message": "Target kiritilmadi!"}, status=400)
+
+        if target.isdigit():
+            user = await userbot.get_entity(int(target))
+        else:
+            if not target.startswith("@"): target = f"@{target}"
+            user = await userbot.get_entity(target)
+
+        full_user = await userbot(telethon.functions.users.GetFullUserRequest(user))
+
+        profile_data = {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "username": user.username,
+            "bio": full_user.full_user.about,
+            "status": str(type(user.status).__name__).replace("UserStatus", ""),
+            "is_bot": user.bot
+        }
+
+        stats_data["sent_messages"] += 1
+        return web.json_response({"status": "success", "profile": profile_data})
+
+    except Exception as e:
+        return web.json_response({"status": "error", "message": f"Profilni analiz qilishda xatolik: {str(e)}"}, status=400)
+
+# POST REJALASHTIRISH API
+async def handle_schedule_post(request):
+    try:
+        data = await request.json()
+        target = data.get("target")
+        message_text = data.get("message")
+        delay = int(data.get("delay", 10))
+
+        if not target or not message_text:
+            return web.json_response({"status": "error", "message": "Ma'lumot to'liq emas!"}, status=400)
+
+        asyncio.create_task(run_scheduled_send(target, message_text, delay))
+
+        return web.json_response({"status": "success", "message": f"✅ Post rejalashtirildi! {delay} soniyadan so'ng yuboriladi."})
+    except Exception as e:
+        return web.json_response({"status": "error", "message": f"Xatolik: {str(e)}"}, status=400)
+
+async def run_scheduled_send(target, text, delay):
+    await asyncio.sleep(delay)
+    try:
+        if target.isdigit() or target.startswith("-"):
+            await bot.send_message(chat_id=int(target), text=text)
+        else:
+            if not target.startswith("@"): target = f"@{target}"
+            await bot.send_message(chat_id=target, text=text)
+        stats_data["sent_messages"] += 1
+    except Exception as e:
+        logging.error(f"Rejalashtirilgan xabar yuborishda xatolik: {e}")
+
 async def handle_send_message(request):
     try:
         data = await request.json()
@@ -409,6 +460,8 @@ async def start_web_server():
     app.router.add_post('/api/tts', handle_text_to_speech)
     app.router.add_post('/api/userbot-spam', handle_userbot_join_spam)
     app.router.add_post('/api/talking-photo', handle_talking_photo)
+    app.router.add_post('/api/analyze-profile', handle_analyze_profile)
+    app.router.add_post('/api/schedule-post', handle_schedule_post)
 
     runner = web.AppRunner(app)
     await runner.setup()
