@@ -6,25 +6,43 @@
     <title>Ghai AI - Advanced Control Panel</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #131314; color: #e3e3e3; height: 100vh; display: flex; overflow: hidden; }
+        body { background-color: #131314; color: #e3e3e3; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* HEADER & PROFIL HEADER */
+        header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: #1e1f20; border-bottom: 1px solid #2d2f31; z-index: 10; }
+        .header-brand { font-size: 18px; font-weight: 600; color: #a8c7fa; }
+        .profile-wrap { position: relative; }
+        .profile-icon { width: 38px; height: 38px; border-radius: 50%; background: #282a2c; border: 1px solid #444746; color: #a8c7fa; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 18px; font-weight: bold; }
+        .profile-dropdown { display: none; position: absolute; right: 0; top: 48px; background: #1e1f20; border: 1px solid #444746; border-radius: 12px; width: 250px; padding: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 1000; }
+        .profile-dropdown p { font-size: 13px; margin-bottom: 8px; color: #c4c7c5; word-break: break-all; }
+        .badge-premium { background: #3c4043; color: #f2b8b5; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        .logout-btn { margin-top: 10px; width: 100%; padding: 8px; background: #f2b8b5; color: #601410; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* AUTH MODAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 2000; }
+        .modal-card { background: #1e1f20; padding: 24px; border-radius: 16px; width: 90%; max-width: 360px; border: 1px solid #444746; text-align: center; }
+        .modal-card h3 { color: #a8c7fa; margin-bottom: 14px; font-size: 18px; }
+
         #auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #131314; display: flex; justify-content: center; align-items: center; z-index: 999; }
         .auth-card { background: #1e1f20; padding: 40px; border-radius: 16px; text-align: center; width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid #2d2f31; }
         .auth-card h2 { margin-bottom: 12px; font-weight: 500; color: #e3e3e3; }
         .auth-card p { font-size: 14px; color: #9aa0a6; margin-bottom: 24px; }
-        .input-box { width: 100%; padding: 14px; border-radius: 8px; border: 1px solid #444746; background: #131314; color: #fff; font-size: 15px; outline: none; margin-bottom: 16px; }
+        .input-box { width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid #444746; background: #131314; color: #fff; font-size: 14px; outline: none; margin-bottom: 12px; }
         .input-box:focus { border-color: #a8c7fa; }
         .btn { width: 100%; padding: 12px; border: none; border-radius: 20px; background: #a8c7fa; color: #040c1e; font-weight: 600; font-size: 15px; cursor: pointer; }
         .btn:hover { background: #7cacf8; }
         .error-msg { color: #f2b8b5; font-size: 13px; margin-top: 10px; display: none; }
-        #app-container { display: none; width: 100%; height: 100%; }
+        
+        #app-container { display: none; width: 100%; height: calc(100vh - 59px); flex: 1; }
         .sidebar { width: 280px; background: #1e1f20; padding: 20px 12px; display: flex; flex-direction: column; gap: 16px; border-right: 1px solid #2d2f31; }
         .brand-title { font-size: 20px; font-weight: 600; padding: 0 12px; color: #a8c7fa; }
         .new-chat-btn { display: flex; align-items: center; gap: 10px; background: #282a2c; color: #e3e3e3; padding: 12px 16px; border-radius: 24px; cursor: pointer; font-size: 14px; border: 1px solid #3c4043; }
         .stats-box { background: #131314; border: 1px solid #3c4043; border-radius: 12px; padding: 12px; font-size: 12px; color: #9aa0a6; }
         .stats-item { display: flex; justify-content: space-between; margin-bottom: 6px; }
         .stats-val { color: #a8c7fa; font-weight: bold; }
+        
         .main-chat { flex: 1; display: flex; flex-direction: column; justify-content: space-between; background: #131314; }
-        .chat-messages { flex: 1; padding: 30px 12%; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .chat-messages { flex: 1; padding: 20px 12%; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
         .msg-row { display: flex; gap: 16px; line-height: 1.6; font-size: 15px; }
         .msg-row.user { justify-content: flex-end; }
         .msg-bubble { max-width: 80%; padding: 14px 20px; border-radius: 18px; }
@@ -32,20 +50,59 @@
         .msg-row.bot .msg-bubble { background: transparent; color: #e3e3e3; padding-left: 0; }
         .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-shrink: 0; }
         .avatar.bot-avatar { background: linear-gradient(135deg, #1a73e8, #a8c7fa); color: #fff; }
+        
         .commands-bar { display: flex; gap: 8px; padding: 0 12% 12px 12%; overflow-x: auto; }
         .cmd-chip { background: #1e1f20; border: 1px solid #444746; color: #c4c7c5; padding: 8px 14px; border-radius: 20px; font-size: 12px; cursor: pointer; white-space: nowrap; }
         .cmd-chip:hover { background: #282a2c; border-color: #a8c7fa; color: #a8c7fa; }
         .input-container { padding: 0 12% 24px 12%; }
-        .input-wrapper { background: #1e1f20; border: 1px solid #444746; border-radius: 28px; padding: 8px 16px 8px 16px; display: flex; align-items: center; gap: 12px; }
+        .input-wrapper { background: #1e1f20; border: 1px solid #444746; border-radius: 28px; padding: 8px 16px; display: flex; align-items: center; gap: 12px; }
         .chat-input { flex: 1; background: transparent; border: none; outline: none; color: #fff; font-size: 15px; padding: 8px 0; }
         .send-btn { background: #a8c7fa; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #040c1e; font-weight: bold; }
         .clip-btn { background: #282a2c; border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #a8c7fa; font-size: 18px; }
         .voice-options { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
         .voice-btn { background: #282a2c; border: 1px solid #a8c7fa; color: #fff; padding: 6px 12px; border-radius: 12px; cursor: pointer; font-size: 12px; }
         .voice-btn:hover { background: #a8c7fa; color: #131314; }
+
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .chat-messages, .commands-bar, .input-container { padding-left: 5%; padding-right: 5%; }
+        }
     </style>
 </head>
 <body>
+
+    <header>
+        <div class="header-brand">Ghai AI</div>
+        <div class="profile-wrap">
+            <div class="profile-icon" onclick="toggleProfileMenu()">👤</div>
+            <div class="profile-dropdown" id="profile-dropdown">
+                <div id="profile-details">
+                    <p><b>Ism:</b> <span id="p-name">-</span></p>
+                    <p><b>Gmail:</b> <span id="p-email">-</span></p>
+                    <p><b>Status:</b> <span class="badge-premium">Premium Yo'q</span></p>
+                    <button class="logout-btn" onclick="logout()">Chiqish</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- AUTH MODAL (GMAIL & OTP) -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal-card" id="step-register">
+            <h3>Profil Yaratish</h3>
+            <input type="text" id="reg-name" class="input-box" placeholder="Ismingiz...">
+            <input type="email" id="reg-email" class="input-box" placeholder="Gmail manzilingiz...">
+            <input type="password" id="reg-pass" class="input-box" placeholder="Parol yarating...">
+            <button class="btn" onclick="sendOtp()">Bo'ldini bosish (Kod yuborish)</button>
+        </div>
+        <div class="modal-card" id="step-otp" style="display:none;">
+            <h3>6 Talik Kodni Kiriting</h3>
+            <p style="font-size:12px; color:#9aa0a6; margin-bottom:12px;">Gmail manzilingizga tasdiqlash kodi yuborildi.</p>
+            <input type="text" id="otp-code" class="input-box" placeholder="123456" maxlength="6">
+            <button class="btn" onclick="verifyOtp()">Tasdiqlash</button>
+        </div>
+    </div>
+
     <div id="auth-overlay">
         <div class="auth-card">
             <h2>Ghai AI</h2>
@@ -72,10 +129,11 @@
             <div class="chat-messages" id="chat-msgs">
                 <div class="msg-row bot">
                     <div class="avatar bot-avatar">G</div>
-                    <div class="msg-bubble">Salom! Men <b>Ghai AI</b>. Barcha yangi va eski funksiyalar ulangan.</div>
+                    <div class="msg-bubble">Salom! Men <b>Ghai AI</b>. Barcha funksiyalar va Telegram kanal yaratuvchi tizim faol.</div>
                 </div>
             </div>
             <div class="commands-bar">
+                <div class="cmd-chip" onclick="sendCmd('kanal ochish')">➕ Telegram Kanal Ochish</div>
                 <div class="cmd-chip" onclick="sendCmd('rasmni gapirtirish')">🎬 rasmni gapirtirish</div>
                 <div class="cmd-chip" onclick="sendCmd('chatga obuna')">➕ chatga obuna</div>
                 <div class="cmd-chip" onclick="sendCmd('kanalga yozish')">📢 kanalga yozish</div>
@@ -107,6 +165,82 @@
         let spamCount = 1;
         let tempParams = {};
         let selectedPhotoFile = null;
+        let currentUser = JSON.parse(localStorage.getItem('user_data')) || null;
+
+        window.onload = function() {
+            updateProfileUI();
+        };
+
+        function updateProfileUI() {
+            if (currentUser) {
+                document.getElementById('p-name').innerText = currentUser.name;
+                document.getElementById('p-email').innerText = currentUser.email;
+                document.getElementById('auth-modal').style.display = 'none';
+            } else {
+                document.getElementById('p-name').innerText = "Ochilmadi";
+                document.getElementById('p-email').innerText = "Mavjud emas";
+            }
+        }
+
+        function toggleProfileMenu() {
+            if (!currentUser) {
+                document.getElementById('auth-modal').style.display = 'flex';
+                document.getElementById('step-register').style.display = 'block';
+                document.getElementById('step-otp').style.display = 'none';
+            } else {
+                const dd = document.getElementById('profile-dropdown');
+                dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+            }
+        }
+
+        async function sendOtp() {
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const pass = document.getElementById('reg-pass').value.trim();
+
+            if (!name || !email || !pass) return alert("Barcha maydonlarni to'ldiring!");
+
+            try {
+                const res = await fetch('/api/auth/send-otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ name, email, pass })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('step-register').style.display = 'none';
+                    document.getElementById('step-otp').style.display = 'block';
+                } else { alert(data.message); }
+            } catch(e) { alert("Server bilan bog'lanishda xatolik!"); }
+        }
+
+        async function verifyOtp() {
+            const code = document.getElementById('otp-code').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const name = document.getElementById('reg-name').value.trim();
+
+            try {
+                const res = await fetch('/api/auth/verify-otp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ email, code })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    currentUser = { name, email, token: data.token };
+                    localStorage.setItem('user_data', JSON.stringify(currentUser));
+                    updateProfileUI();
+                    alert("Profil muvaffaqiyatli ochildi!");
+                } else { alert(data.message); }
+            } catch(e) { alert("Xatolik yuz berdi!"); }
+        }
+
+        function logout() {
+            localStorage.removeItem('user_data');
+            currentUser = null;
+            document.getElementById('profile-dropdown').style.display = 'none';
+            updateProfileUI();
+        }
 
         function checkPass() {
             const input = document.getElementById("pass-input").value;
@@ -175,12 +309,59 @@
             addMessage(`Ovoz turi tanlandi: <b>${type}</b>. Endi ovozli xabar yuboriladigan Telegram ID-ni kiriting:`, "bot");
         }
 
+        function selectChannelType(type) {
+            tempParams.channel_type = type;
+            if (type === 'public') {
+                chatState = "WAITING_CHANNEL_USERNAME";
+                addMessage("Kanal uchun **niknem (username)** kiriting (masalan: my_new_channel):", "bot");
+            } else {
+                createTelegramChannel("", "private");
+            }
+        }
+
+        async function createTelegramChannel(username, type) {
+            chatState = "IDLE";
+            addMessage("⏳ Real vaqtda Telegram akkauntingizda kanal yaratilmoqda...", "bot");
+            try {
+                const res = await fetch('/api/create-telegram-channel', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        title: tempParams.channel_title,
+                        type: type,
+                        username: username
+                    })
+                });
+                const data = await res.json();
+                addMessage(data.message, "bot");
+            } catch(e) {
+                addMessage("Kanal ochishda server xatoligi yuz berdi.", "bot");
+            }
+        }
+
         async function handleSend() {
             const input = document.getElementById("msg-input");
             const text = input.value.trim();
             if (!text && !selectedPhotoFile) return;
             if (text) addMessage(text, "user");
             input.value = "";
+
+            // KANAL OCHISH TIZIMI
+            if (chatState === "WAITING_CHANNEL_TITLE") {
+                tempParams.channel_title = text;
+                chatState = "SELECT_CHANNEL_TYPE";
+                addMessage(`Kanal turi qanday bo'lsin?<br>
+                    <div class="voice-options">
+                        <button class="voice-btn" onclick="selectChannelType('public')">🌐 Public (Ochiq)</button>
+                        <button class="voice-btn" onclick="selectChannelType('private')">🔒 Private (Xususiy)</button>
+                    </div>`, "bot");
+                return;
+            }
+
+            if (chatState === "WAITING_CHANNEL_USERNAME") {
+                createTelegramChannel(text, "public");
+                return;
+            }
 
             // RASMNI GAPIRTIRISH STEPLARI
             if (chatState === "WAITING_TALKING_TEXT") {
@@ -192,7 +373,7 @@
 
             if (chatState === "WAITING_TALKING_ID") {
                 chatState = "IDLE";
-                addMessage("🎬 Rasm va audio qayta ishlanmoqda. Video tayyorlanishi biroz vaqt oladi (1-2 daqiqa)...", "bot");
+                addMessage("🎬 Rasm va audio qayta ishlanmoqda...", "bot");
 
                 const formData = new FormData();
                 formData.append("image", selectedPhotoFile);
@@ -200,218 +381,26 @@
                 formData.append("target_id", text);
 
                 try {
-                    const res = await fetch('/api/talking-photo', {
-                        method: 'POST',
-                        body: formData
-                    });
+                    const res = await fetch('/api/talking-photo', { method: 'POST', body: formData });
                     const data = await res.json();
                     addMessage(data.message, "bot");
-                } catch (err) {
-                    addMessage("Xatolik yuz berdi.", "bot");
-                }
+                } catch (err) { addMessage("Xatolik yuz berdi.", "bot"); }
                 selectedPhotoFile = null;
-                return;
-            }
-
-            // 1. CHATGA OBUNA BO'LISH
-            if (chatState === "WAITING_JOIN_NAME") {
-                chatState = "IDLE";
-                addMessage(`⏳ Bot <b>${text}</b> kanaliga ulanish holati tekshirilmoqda...`, "bot");
-                try {
-                    const res = await fetch('/api/join-channel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ channel_username: text })
-                    });
-                    const data = await res.json();
-                    addMessage(data.message, "bot");
-                } catch (err) { addMessage("Server bilan bog'lanishda xatolik.", "bot"); }
-                return;
-            }
-
-            // 2. KANALGA KETMA-KET XABAR YOZISH
-            if (chatState === "WAITING_SPAM_CHANNEL") {
-                targetChannel = text; chatState = "WAITING_SPAM_COUNT";
-                addMessage("Nechta xabar yozish kerak? (1 tadan 1300 tagacha):", "bot");
-                return;
-            }
-            if (chatState === "WAITING_SPAM_COUNT") {
-                spamCount = parseInt(text) || 1; chatState = "WAITING_SPAM_MSG";
-                addMessage("Kanal/guruhga yuboriladigan xabarni kiriting:", "bot");
-                return;
-            }
-            if (chatState === "WAITING_SPAM_MSG") {
-                chatState = "IDLE";
-                addMessage("Yuborish jarayoni boshlanmoqda...", "bot");
-                try {
-                    const res = await fetch('/api/spam-channel', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ channel_username: targetChannel, count: spamCount, message: text })
-                    });
-                    const data = await res.json(); addMessage(data.message, "bot");
-                } catch (err) { addMessage("Xabar yuborishda xatolik.", "bot"); }
-                return;
-            }
-
-            // 3. ANONIM YOZISH
-            if (chatState === "WAITING_ANON_ID") {
-                tempParams.target_id = text; chatState = "WAITING_ANON_MSG";
-                addMessage("Anonim xabar matnini kiriting:", "bot"); return;
-            }
-            if (chatState === "WAITING_ANON_MSG") {
-                chatState = "IDLE";
-                const res = await fetch('/api/send-anon', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({target_id: tempParams.target_id, message: text}) });
-                const data = await res.json(); addMessage(data.message, "bot"); return;
-            }
-
-            // 4. POST FORWARDER
-            if (chatState === "WAITING_FWD_FROM") {
-                tempParams.from_chat = text; chatState = "WAITING_FWD_TO";
-                addMessage("Qaysi kanalga ko'chirib o'tkazilsin? (@kanal):", "bot"); return;
-            }
-            if (chatState === "WAITING_FWD_TO") {
-                chatState = "IDLE";
-                const res = await fetch('/api/forward-posts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({from_chat: tempParams.from_chat, to_chat: text, limit: 5}) });
-                const data = await res.json(); addMessage(data.message, "bot"); return;
-            }
-
-            // 5. MEDIA DOWNLOADER
-            if (chatState === "WAITING_MEDIA_URL") {
-                tempParams.url = text; chatState = "WAITING_MEDIA_ID";
-                addMessage("Media qaysi Telegram ID ga yuborilsin?:", "bot"); return;
-            }
-            if (chatState === "WAITING_MEDIA_ID") {
-                chatState = "IDLE"; addMessage("Media yuklanmoqda...", "bot");
-                const res = await fetch('/api/download-media', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url: tempParams.url, target_id: text}) });
-                const data = await res.json(); addMessage(data.message, "bot"); return;
-            }
-
-            // 6. TEXT TO SPEECH
-            if (chatState === "WAITING_TTS_TEXT") {
-                tempParams.text = text;
-                chatState = "SELECT_VOICE";
-                addMessage(`Ovoz turini tanlang:<br>
-                    <div class="voice-options">
-                        <button class="voice-btn" onclick="selectVoice('girl')">👩 Qiz bola</button>
-                        <button class="voice-btn" onclick="selectVoice('boy')">👨 O'g'il bola</button>
-                        <button class="voice-btn" onclick="selectVoice('child')">👶 Yosh bola</button>
-                        <button class="voice-btn" onclick="selectVoice('hacker')">🎭 Haker</button>
-                        <button class="voice-btn" onclick="selectVoice('robot')">🤖 Robot</button>
-                        <button class="voice-btn" onclick="selectVoice('realistic')">🎧 Realistik Studio</button>
-                    </div>`, "bot");
-                return;
-            }
-            if (chatState === "WAITING_TTS_ID") {
-                chatState = "IDLE";
-                addMessage("🎙️ Ovoz shakllantirilmoqda...", "bot");
-                const res = await fetch('/api/tts', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        text: tempParams.text,
-                        voice_type: tempParams.voice_type,
-                        target_id: text
-                    })
-                });
-                const data = await res.json(); addMessage(data.message, "bot"); return;
-            }
-
-            // PROFIL ANALIZATORI
-            if (chatState === "WAITING_ANALYZE_TARGET") {
-                chatState = "IDLE";
-                addMessage(`🔍 <b>${text}</b> profil ma'lumotlari tahlil qilinmoqda...`, "bot");
-                try {
-                    const res = await fetch('/api/analyze-profile', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ target: text })
-                    });
-                    const data = await res.json();
-                    if (data.status === 'success') {
-                        const p = data.profile;
-                        addMessage(`👤 <b>Profil Ma'lumotlari:</b><br><br>
-                            <b>ID:</b> ${p.id}<br>
-                            <b>Ism:</b> ${p.first_name} ${p.last_name || ''}<br>
-                            <b>Username:</b> ${p.username ? '@' + p.username : 'Mavjud emas'}<br>
-                            <b>Bio:</b> ${p.bio || 'Yo\'q'}<br>
-                            <b>Status:</b> ${p.status}<br>
-                            <b>Botmi?:</b> ${p.is_bot ? 'Ha' : 'Yo\'q'}`, "bot");
-                    } else { addMessage(`❌ ${data.message}`, "bot"); }
-                } catch (err) { addMessage("Xatolik yuz berdi.", "bot"); }
-                return;
-            }
-
-            // POST REJALASHTIRISH
-            if (chatState === "WAITING_SCHED_TARGET") {
-                tempParams.sched_target = text; chatState = "WAITING_SCHED_MSG";
-                addMessage("Yuboriladigan xabar matnini kiriting:", "bot"); return;
-            }
-            if (chatState === "WAITING_SCHED_MSG") {
-                tempParams.sched_msg = text; chatState = "WAITING_SCHED_DELAY";
-                addMessage("Xabar necha soniyadan keyin yuborilsin? (masalan: 10, 60, 300):", "bot"); return;
-            }
-            if (chatState === "WAITING_SCHED_DELAY") {
-                chatState = "IDLE";
-                const delay = parseInt(text) || 10;
-                addMessage(`⏰ Xabar <b>${delay} soniyadan keyin</b> yuborish uchun rejalashtirildi...`, "bot");
-                try {
-                    const res = await fetch('/api/schedule-post', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            target: tempParams.sched_target,
-                            message: tempParams.sched_msg,
-                            delay: delay
-                        })
-                    });
-                    const data = await res.json();
-                    addMessage(data.message, "bot");
-                } catch (err) { addMessage("Rejalashtirishda xatolik.", "bot"); }
-                return;
-            }
-
-            // KANAL KORISH
-            if (chatState === "WAITING_CHANNEL_NAME") {
-                chatState = "IDLE";
-                addMessage(`🔎 <b>${text}</b> kanali tahlil qilinmoqda...`, "bot");
-                try {
-                    const res = await fetch('/api/check-channel', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ channel_username: text })
-                    });
-                    const data = await res.json();
-                    if (data.status === 'success') {
-                        addMessage(`📊 <b>Kanal Natijalari:</b><br><br><b>Nomi:</b> ${data.title}<br><b>A'zolar:</b> ${data.members_count} ta<br><b>Adminlar:</b> ${data.admins.join(', ')}`, "bot");
-                    } else { addMessage(`❌ ${data.message}`, "bot"); }
-                } catch (err) { addMessage("Xatolik yuz berdi.", "bot"); }
-                return;
-            }
-
-            // ID GA YOZISH
-            if (chatState === "WAITING_TARGET_ID") {
-                targetId = text; chatState = "WAITING_MSG";
-                addMessage("Nima deb yozmoqchisiz?", "bot"); return;
-            }
-            if (chatState === "WAITING_MSG") {
-                chatState = "IDLE";
-                try {
-                    const res = await fetch('/api/send-msg', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ target_id: targetId, message: text })
-                    });
-                    const data = await res.json();
-                    addMessage(data.status === 'success' ? `✅ Xabar yetkazildi.` : `❌ ${data.message}`, "bot");
-                } catch (err) { addMessage("Xatolik.", "bot"); }
                 return;
             }
 
             // BUYRUQLARNI QABUL QILISH
             const lower = text.toLowerCase();
-            if (lower === "rasmni gapirtirish") {
-                chatState = "WAITING_TALKING_PHOTO";
-                addMessage("Iltimos, pastdagi 📎 (klip) tugmasini bosib gapirtirmoqchi bo'lgan rasmingizni yuklang:", "bot");
+            if (lower === "kanal ochish") {
+                if (!currentUser) {
+                    addMessage("⚠️ Kanal ochish uchun avval o'ng yuqori qismdagi profil rasmini bosib, Gmail orqali ro'yxatdan o'ting!", "bot");
+                    toggleProfileMenu();
+                    return;
+                }
+                chatState = "WAITING_CHANNEL_TITLE";
+                addMessage("Yangi Telegram kanal nomini (nikini) kiriting:", "bot");
             }
+            else if (lower === "rasmni gapirtirish") { chatState = "WAITING_TALKING_PHOTO"; addMessage("📎 (klip) tugmasi orqali rasm yuklang:", "bot"); }
             else if (lower === "chatga obuna") { chatState = "WAITING_JOIN_NAME"; addMessage("Kanal yoki guruh niknemini kiriting:", "bot"); }
             else if (lower === "kanalga yozish") { chatState = "WAITING_SPAM_CHANNEL"; addMessage("Kanal/guruh niknemini kiriting:", "bot"); }
             else if (lower === "anonim yozish") { chatState = "WAITING_ANON_ID"; addMessage("Qabul qiluvchining Telegram ID-sini kiriting:", "bot"); }
@@ -420,8 +409,8 @@
             else if (lower === "ovozga aylantirish") { chatState = "WAITING_TTS_TEXT"; addMessage("Ovozga aylantiriladigan matnni yozing:", "bot"); }
             else if (lower === "kanal korish") { chatState = "WAITING_CHANNEL_NAME"; addMessage("Kanal niknemini kiriting:", "bot"); }
             else if (lower === "yozish") { chatState = "WAITING_TARGET_ID"; addMessage("Telegram IDni kiriting:", "bot"); }
-            else if (lower === "profil analiz") { chatState = "WAITING_ANALYZE_TARGET"; addMessage("Profilini analiz qilmoqchi bo'lgan foydalanuvchining Telegram ID yoki Username-ini kiriting:", "bot"); }
-            else if (lower === "post rejalashtirish") { chatState = "WAITING_SCHED_TARGET"; addMessage("Post qaysi kanal, guruh yoki Telegram ID ga yuborilsin?:", "bot"); }
+            else if (lower === "profil analiz") { chatState = "WAITING_ANALYZE_TARGET"; addMessage("Telegram ID yoki Username kiritng:", "bot"); }
+            else if (lower === "post rejalashtirish") { chatState = "WAITING_SCHED_TARGET"; addMessage("Post yuboriladigan manzilni kiriting:", "bot"); }
             else { addMessage(`Ghai AI: <i>"${text}"</i> so'rovingiz qabul qilindi.`, "bot"); }
         }
     </script>
