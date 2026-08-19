@@ -85,6 +85,8 @@
                 <div class="cmd-chip" onclick="sendCmd('ovozga aylantirish')">🎙️ text to speech</div>
                 <div class="cmd-chip" onclick="sendCmd('kanal korish')">🔍 kanal korish</div>
                 <div class="cmd-chip" onclick="sendCmd('yozish')">✉️ yozish (ID ga)</div>
+                <div class="cmd-chip" onclick="sendCmd('profil analiz')">🔍 profil analiz</div>
+                <div class="cmd-chip" onclick="sendCmd('post rejalashtirish')">⏰ post rejalashtirish</div>
             </div>
             <div class="input-container">
                 <div class="input-wrapper">
@@ -285,7 +287,7 @@
                 const data = await res.json(); addMessage(data.message, "bot"); return;
             }
 
-            // 6. TEXT TO SPEECH (OVOZ TURLARI BILAN)
+            // 6. TEXT TO SPEECH
             if (chatState === "WAITING_TTS_TEXT") {
                 tempParams.text = text;
                 chatState = "SELECT_VOICE";
@@ -313,6 +315,60 @@
                     })
                 });
                 const data = await res.json(); addMessage(data.message, "bot"); return;
+            }
+
+            // PROFIL ANALIZATORI
+            if (chatState === "WAITING_ANALYZE_TARGET") {
+                chatState = "IDLE";
+                addMessage(`🔍 <b>${text}</b> profil ma'lumotlari tahlil qilinmoqda...`, "bot");
+                try {
+                    const res = await fetch('/api/analyze-profile', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ target: text })
+                    });
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        const p = data.profile;
+                        addMessage(`👤 <b>Profil Ma'lumotlari:</b><br><br>
+                            <b>ID:</b> ${p.id}<br>
+                            <b>Ism:</b> ${p.first_name} ${p.last_name || ''}<br>
+                            <b>Username:</b> ${p.username ? '@' + p.username : 'Mavjud emas'}<br>
+                            <b>Bio:</b> ${p.bio || 'Yo\'q'}<br>
+                            <b>Status:</b> ${p.status}<br>
+                            <b>Botmi?:</b> ${p.is_bot ? 'Ha' : 'Yo\'q'}`, "bot");
+                    } else { addMessage(`❌ ${data.message}`, "bot"); }
+                } catch (err) { addMessage("Xatolik yuz berdi.", "bot"); }
+                return;
+            }
+
+            // POST REJALASHTIRISH
+            if (chatState === "WAITING_SCHED_TARGET") {
+                tempParams.sched_target = text; chatState = "WAITING_SCHED_MSG";
+                addMessage("Yuboriladigan xabar matnini kiriting:", "bot"); return;
+            }
+            if (chatState === "WAITING_SCHED_MSG") {
+                tempParams.sched_msg = text; chatState = "WAITING_SCHED_DELAY";
+                addMessage("Xabar necha soniyadan keyin yuborilsin? (masalan: 10, 60, 300):", "bot"); return;
+            }
+            if (chatState === "WAITING_SCHED_DELAY") {
+                chatState = "IDLE";
+                const delay = parseInt(text) || 10;
+                addMessage(`⏰ Xabar <b>${delay} soniyadan keyin</b> yuborish uchun rejalashtirildi...`, "bot");
+                try {
+                    const res = await fetch('/api/schedule-post', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            target: tempParams.sched_target,
+                            message: tempParams.sched_msg,
+                            delay: delay
+                        })
+                    });
+                    const data = await res.json();
+                    addMessage(data.message, "bot");
+                } catch (err) { addMessage("Rejalashtirishda xatolik.", "bot"); }
+                return;
             }
 
             // KANAL KORISH
@@ -364,6 +420,8 @@
             else if (lower === "ovozga aylantirish") { chatState = "WAITING_TTS_TEXT"; addMessage("Ovozga aylantiriladigan matnni yozing:", "bot"); }
             else if (lower === "kanal korish") { chatState = "WAITING_CHANNEL_NAME"; addMessage("Kanal niknemini kiriting:", "bot"); }
             else if (lower === "yozish") { chatState = "WAITING_TARGET_ID"; addMessage("Telegram IDni kiriting:", "bot"); }
+            else if (lower === "profil analiz") { chatState = "WAITING_ANALYZE_TARGET"; addMessage("Profilini analiz qilmoqchi bo'lgan foydalanuvchining Telegram ID yoki Username-ini kiriting:", "bot"); }
+            else if (lower === "post rejalashtirish") { chatState = "WAITING_SCHED_TARGET"; addMessage("Post qaysi kanal, guruh yoki Telegram ID ga yuborilsin?:", "bot"); }
             else { addMessage(`Ghai AI: <i>"${text}"</i> so'rovingiz qabul qilindi.`, "bot"); }
         }
     </script>
